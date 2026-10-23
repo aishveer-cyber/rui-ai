@@ -1,0 +1,56 @@
+name: Build RUI (APK + AAB)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Unzip project
+        run: unzip -q RUI-source.zip
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-37.0 platforms;android-36 build-tools;37.0.0 ndk;27.3.13750724 cmake;3.22.1'
+
+      - name: Install JS dependencies
+        working-directory: pocketpal-ai-main
+        run: |
+          rm -f android/local.properties
+          npm i -g yarn@1.22.22
+          yarn install --ignore-engines
+
+      - name: Build APK
+        working-directory: pocketpal-ai-main/android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleProdRelease -PreactNativeArchitectures=arm64-v8a
+
+      - name: Build AAB
+        working-directory: pocketpal-ai-main/android
+        run: ./gradlew bundleProdRelease -PreactNativeArchitectures=arm64-v8a
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: RUI-apk
+          path: pocketpal-ai-main/android/app/build/outputs/apk/prod/release/*.apk
+
+      - name: Upload AAB
+        uses: actions/upload-artifact@v4
+        with:
+          name: RUI-aab
+          path: pocketpal-ai-main/android/app/build/outputs/bundle/prodRelease/*.aab
