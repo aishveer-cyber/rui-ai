@@ -12,6 +12,13 @@ jobs:
       - name: Unzip project
         run: unzip -q RUI-source.zip
 
+      - name: Fix project settings
+        run: |
+          rm -f pocketpal-ai-main/android/local.properties
+          sed -i '/systemProp\./d' pocketpal-ai-main/android/gradle.properties
+          sed -i 's|^org.gradle.jvmargs=.*|org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g|' pocketpal-ai-main/android/gradle.properties
+          sed -i 's|^kotlin.daemon.jvmargs=.*|kotlin.daemon.jvmargs=-Xmx2g|' pocketpal-ai-main/android/gradle.properties
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -29,7 +36,6 @@ jobs:
       - name: Install JS dependencies
         working-directory: pocketpal-ai-main
         run: |
-          rm -f android/local.properties
           npm i -g yarn@1.22.22
           yarn install --ignore-engines
 
