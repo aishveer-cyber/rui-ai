@@ -9,6 +9,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Free disk space
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: false
+          android: false
+          dotnet: true
+          haskell: true
+          large-packages: true
+          swap-storage: true
+
       - name: Unzip project
         run: unzip -q RUI-source.zip
 
@@ -16,8 +26,9 @@ jobs:
         run: |
           rm -f pocketpal-ai-main/android/local.properties
           sed -i '/systemProp\./d' pocketpal-ai-main/android/gradle.properties
-          sed -i 's|^org.gradle.jvmargs=.*|org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g|' pocketpal-ai-main/android/gradle.properties
-          sed -i 's|^kotlin.daemon.jvmargs=.*|kotlin.daemon.jvmargs=-Xmx2g|' pocketpal-ai-main/android/gradle.properties
+          sed -i '/^kotlin.daemon.jvmargs=/d' pocketpal-ai-main/android/gradle.properties
+          sed -i 's|^org.gradle.jvmargs=.*|org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=512m|' pocketpal-ai-main/android/gradle.properties
+          printf '\nkotlin.compiler.execution.strategy=in-process\norg.gradle.parallel=false\norg.gradle.workers.max=2\n' >> pocketpal-ai-main/android/gradle.properties
 
       - uses: actions/setup-java@v4
         with:
@@ -39,15 +50,30 @@ jobs:
           npm i -g yarn@1.22.22
           yarn install --ignore-engines
 
+      - name: Use prebuilt llama.rn native libraries
+        working-directory: pocketpal-ai-main
+        run: |
+          DEST=node_modules/llama.rn/android/src/main/jniLibs
+          mkdir -p "$DEST"
+          curl -L -o /tmp/llama.tar.gz https://github.com/mybigday/llama.rn/releases/download/v0.13.0-rc.7/llama-rn-android-jni-libs.tar.gz
+          tar -xzf /tmp/llama.tar.gz -C "$DEST" --strip-components=4
+          echo "de870c027009edb59fc27ee668442cedbd4cd1a2c49818b398024e0a714e228f" > "$DEST/.llama-rn.sha256"
+          ls "$DEST"
+
+      - name: Show free space and memory
+        run: |
+          df -h /
+          free -m
+
       - name: Build APK
         working-directory: pocketpal-ai-main/android
         run: |
           chmod +x gradlew
-          ./gradlew assembleProdRelease -PreactNativeArchitectures=arm64-v8a
+          ./gradlew assembleProdRelease -PreactNativeArchitectures=arm64-v8a --stacktrace
 
       - name: Build AAB
         working-directory: pocketpal-ai-main/android
-        run: ./gradlew bundleProdRelease -PreactNativeArchitectures=arm64-v8a
+        run: ./gradlew bundleProdRelease -PreactNativeArchitectures=arm64-v8a --stacktrace
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
